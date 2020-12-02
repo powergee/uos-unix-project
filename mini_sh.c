@@ -4,12 +4,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
-
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <errno.h>
+#include <string.h>
 
 #define FALSE 0
 #define TRUE 1
@@ -105,7 +102,8 @@ int parse_and_execute(char *input)
 				quit = TRUE;
 			else if (!strcmp(arg[0], "cd"))
 			{
-				/* Do something */
+				if (chdir(arg[1]) != 0)
+					printf("cd : %s\n", strerror(errno));
 			}
 			else if (!strcmp(arg[0], "type"))
 			{
@@ -144,17 +142,19 @@ int parse_and_execute(char *input)
 	return quit;
 }
 
-main()
+int main()
 {
 	char *arg[1024];
+	char path[1024];
 	int quit;
 
-	printf("msh # ");
-	while (gets(input))
+	printf("msh:%s # ", getcwd(path, 1024));
+	while (fgets(input, 512, stdin))
 	{
+		input[strlen(input)-1] = '\0';
 		quit = parse_and_execute(input);
 		if (quit)
 			break;
-		printf("msh # ");
+		printf("msh:%s # ", getcwd(path, 1024));
 	}
 }
