@@ -111,14 +111,6 @@ int build_prefix(ExecUnit* units, int unit_count, ExecUnit** prefix)
 {
 	int length;
 
-	// for (int i = 0; i < unit_count; ++i)
-	// {
-	// 	printf("units #%d: ", i+1);
-	// 	for (int j = 0; j < units[i].argv; ++j)
-	// 		printf("<%s> ", units[i].args[j]);
-	// 	printf("\n");
-	// }
-
 	for (int i = 0; i < unit_count/2; ++i)
 	{
 		int j = unit_count - i - 1;
@@ -128,14 +120,6 @@ int build_prefix(ExecUnit* units, int unit_count, ExecUnit** prefix)
 	}
 
 	length = build_postfix(units, unit_count, prefix);
-
-	// for (int i = 0; i < length; ++i)
-	// {
-	// 	printf("prefix #%d: ", i + 1);
-	// 	for (int j = 0; j < prefix[i]->argv; ++j)
-	// 		printf("<%s> ", prefix[i]->args[j]);
-	// 	printf("\n");
-	// }
 
 	for (int i = 0; i < length/2; ++i)
 	{
@@ -407,13 +391,6 @@ int parse_and_execute(char *input)
 		case AMPERSAND:
 			unit_count = (units[unit_top].argv ? 1 : 0) + unit_top;
 			int pf_length = build_prefix(units, unit_count, prefix);
-			// for (int i = 0; i < pf_length; ++i)
-			// {
-			// 	printf("prefix #%d: ", i+1);
-			// 	for (int j = 0; j < prefix[i]->argv; ++j)
-			// 		printf("<%s> ", prefix[i]->args[j]);
-			// 	printf("\n");
-			// }
 
 			how = (type == AMPERSAND) ? BACKGROUND : FOREGROUND;
 			execute(prefix, pf_length, how);
