@@ -103,6 +103,64 @@ int get_token(char **outptr, char* tokens, char* input, int* tokenIdx, int* inpu
 
 int start_process(ExecUnit* info)
 {
+	int pid, input_pipe[2], output_pipe[2];
+
+	if (info->executed)
+		return 0;
+	info->executed = TRUE;
+
+	if (strcmp(info->args[0], "quit") == 0 || strcmp(info->args[0], "exit") == 0)
+		exit(0);
+	else if (strcmp(info->args[0], "cd") == 0)
+	{
+		if (chdir(info->args[1]) != 0)
+		{
+			fprintf(stderr, "cd : %s\n", strerror(errno));
+			return -1;
+		}
+		return 0;
+	}
+
+	if (pipe(input_pipe) != 0 || pipe(output_pipe) != 0)
+	{
+		fprintf(stderr, "minish : pipe error\n");
+		return -1;
+	}
+	
+	info->input = input_pipe[1];
+	info->output = output_pipe[0];
+	pid = fork();
+
+	if (pid < 0)
+	{
+		fprintf(stderr, "minish : fork error\n");
+		return -1;
+	}
+	else if (pid == 0) // Child Process
+	{
+		// 자식 입장에서 사용하지 않는 파이프 말단을 닫음.
+		close(input_pipe[1]);
+		close(output_pipe[0]);
+
+		// 자식의 표준 입력/출력을 바꿈.
+		dup2(input_pipe[0], STDIN_FILENO);
+		dup2(output_pipe[1], STDOUT_FILENO);
+
+		execvp(*(info->args), info->args);
+		fprintf(stderr, "minish : command not found\n");
+		return -1;
+	}
+	// if (how == BACKGROUND)
+	// { /* Background execution */
+	// 	printf("[%d]\n", pid);
+	// 	return 0;
+	// }
+	
+	// 부모(쉘) 입장에서 사용하지 않는 파이프 말단을 닫음.
+	close(input_pipe[0]);
+	close(output_pipe[1]);
+	info->executed = TRUE;
+	return pid;
 }
 
 /*
@@ -114,7 +172,74 @@ Redirection(<, >)는 Pipe(|)보다 우선순위가 높다.
 */
 int execute(ExecUnit** postfix, int length, int how)
 {
-	
+	Stack exe_stack = {0, };
+	int origin_stdin, origin_stdout;
+	int last_pid = -1, last_output;
+	ExecUnit *u1, *u2, *uptr;
+
+	origin_stdin = dup(STDIN_FILENO);
+	origin_stdout = dup(STDOUT_FILENO);
+
+	for (int i = 0; i < length; ++i)
+	{
+		if (strcmp(postfix[i]->args[0], "|") == 0)
+		{
+			if (exe_stack.size < 2)
+			{
+				fprintf(stderr, "minish : syntax error \"%s\"\n", postfix[i]->args[0]);
+				return -1;
+			}
+
+			u2 = (ExecUnit*)pop(&exe_stack);
+			u1 = (ExecUnit*)pop(&exe_stack);
+
+			start_process(u1);
+			last_pid = start_process(u2);
+
+			dup2(u1->output, u2->input);
+			last_output = u2->output;
+
+			push(&exe_stack, u2);
+		}
+		else if (strcmp(postfix[i]->args[0], ">") == 0)
+		{
+
+		}
+		else if (strcmp(postfix[i]->args[0], "<") == 0)
+		{
+
+		}
+		else
+			push(&exe_stack, postfix[i]);
+	}
+
+	dup2(origin_stdout, last_output);
+	if (last_pid != -1 && waitpid(last_pid, NULL, 0) < 0)
+		if (errno != EINTR)
+			return -1;
+
+	while (exe_stack.size)
+	{
+		uptr = (ExecUnit*)pop(&exe_stack);
+		if (uptr->executed)
+			continue;
+			
+		last_pid = start_process(uptr);
+
+		if (last_pid == -1)
+			return -1;
+		else if (last_pid > 0)
+		{
+			while (waitpid(last_pid, NULL, 0) < 0)
+				if (errno != EINTR)
+					return -1;
+		}
+	}
+
+	dup2(origin_stdin, STDIN_FILENO);
+	dup2(origin_stdout, STDOUT_FILENO);
+	close(origin_stdin);
+	close(origin_stdout);
 }
 
 int parse_and_execute(char *input)
